@@ -108,6 +108,8 @@ class Model(ABC):
                 # Maximal number of tokens considered to compute a representation for code/query:
                 'code_max_num_tokens': 200,
                 'query_max_num_tokens': 30,
+                'code_use_token_embeddings': True,
+                'query_use_token_embeddings': False
                }
 
     def __init__(self,
@@ -589,7 +591,10 @@ class Model(ABC):
                 else:
                     full_query_batch_data[key] = value
             if language_to_reweighting_factor is not None:
-                language_weights.extend([language_to_reweighting_factor[language]] * len(batch_data['per_language_code_data'][language]['tokens']))
+                if self.hyperparameters['code_use_token_embeddings']:
+                    language_weights.extend([language_to_reweighting_factor[language]] * len(batch_data['per_language_code_data'][language]['token_embeddings']))
+                else:
+                    language_weights.extend([language_to_reweighting_factor[language]] * len(batch_data['per_language_code_data'][language]['tokens']))
 
         self.__query_encoder.minibatch_to_feed_dict(full_query_batch_data, final_minibatch, is_train)
         if language_to_reweighting_factor is not None:
