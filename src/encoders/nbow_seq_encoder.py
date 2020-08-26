@@ -26,7 +26,10 @@ class NBoWEncoder(MaskedSeqEncoder):
         with tf.variable_scope("nbow_encoder"):
             self._make_placeholders()
 
-            seq_tokens_embeddings = self.embedding_layer(self.placeholders['tokens'])
+            if self.get_hyper('use_token_embeddings'):
+                seq_tokens_embeddings = self.placeholders['token_embeddings']
+            else:
+                seq_tokens_embeddings = self.embedding_layer(self.placeholders['tokens'])
             seq_token_mask = self.placeholders['tokens_mask']
             seq_token_lengths = tf.reduce_sum(seq_token_mask, axis=1)  # B
             return pool_sequence_embedding(self.get_hyper('nbow_pool_mode').lower(),
