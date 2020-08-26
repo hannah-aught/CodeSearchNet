@@ -14,7 +14,8 @@ BIG_NUMBER = 1e7
 def convert_and_pad_token_sequence(token_vocab: Union[Vocabulary, BpeVocabulary],
                                    token_sequence: List[str],
                                    output_tensor_size: int,
-                                   pad_from_left: bool = False) \
+                                   pad_from_left: bool = False,
+                                   use_embeddings: bool = True) \
         -> Tuple[np.ndarray, np.ndarray]:
     """
     Tensorise token sequence with padding; returning a mask for used elements as well.
@@ -24,12 +25,14 @@ def convert_and_pad_token_sequence(token_vocab: Union[Vocabulary, BpeVocabulary]
         token_sequence: List of tokens in string form
         output_tensor_size: Size of the resulting tensor (i.e., length up which we pad / down to which we truncate.
         pad_from_left: Indicate if we are padding/truncating on the left side of string. [Default: False]
+        use_embeddings: Indicates if we want to return a padded sequence of token ids or a raw token sequence (for pretrained embeddings). [Default: True]
 
     Returns:
         Pair of numpy arrays. First is the actual tensorised token sequence, the second is a masking tensor
         that is 1.0 for those token indices that are actually used.
+        If use_embeddings is true, the token sequence will be the tokens themselves rather than token IDs
     """
-    if isinstance(token_vocab, BpeVocabulary):
+    if isinstance(token_vocab, BpeVocabulary) and not use_embeddings:
         token_ids = np.array(list(token_vocab.transform([token_sequence], fixed_length=output_tensor_size))[0])
         token_mask = np.array([1 if token_ids[i] > 0 else 0 for i in range(len(token_ids))])
         return token_ids, token_mask
@@ -45,10 +48,16 @@ def convert_and_pad_token_sequence(token_vocab: Union[Vocabulary, BpeVocabulary]
     else:
         start_idx = 0
 
-    token_ids = np.zeros(output_tensor_size, dtype=np.int32)
+    if use_embeddings:
+        token_ids = np.asarray([token_vocab.PAD] * output_tensor_size, dtype='O')
+    else:
+        token_ids = np.zeros(output_tensor_size, dtype=np.int32)
     token_mask = np.zeros(output_tensor_size, dtype=np.float32)
     for i, token in enumerate(token_sequence, start=start_idx):
-        token_ids[i] = token_vocab.get_id_or_unk(token)
+        if use_embeddings:
+            token_ids[i] = token
+        else:
+            token_ids[i] = token_vocab.get_id_or_unk(token)
         token_mask[i] = True
 
     return token_ids, token_mask
