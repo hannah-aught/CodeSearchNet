@@ -48,6 +48,7 @@ import model_restore_helper
 from model_test import compute_evaluation_metrics
 from models.model import Model
 import model_test as test
+from utils import embedding_helper
 
 def run_train(model_class: Type[Model],
               train_data_dirs: List[RichPath],
@@ -59,6 +60,7 @@ def run_train(model_class: Type[Model],
               quiet: bool = False,
               max_files_per_dir: Optional[int] = None,
               parallelize: bool = True) -> RichPath:
+    # creates the session/graph, initializes gpu settings
     model = model_class(hyperparameters, run_name=run_name, model_save_dir=save_folder, log_save_dir=save_folder)
     if os.path.exists(model.model_save_path):
         model = model_restore_helper.restore(RichPath.create(model.model_save_path), is_train=True)
@@ -85,6 +87,9 @@ def run_train(model_class: Type[Model],
     model.train_log("Loading training and validation data.")
     train_data = model.load_data_from_dirs(train_data_dirs, is_test=False, max_files_per_dir=max_files_per_dir, parallelize=parallelize)
     valid_data = model.load_data_from_dirs(valid_data_dirs, is_test=False, max_files_per_dir=max_files_per_dir, parallelize=parallelize)
+    if hyperparameters['code_use_token_embeddings']:
+        embedding_helper.get_embeddings(train_data, hyperparameters['code_max_num_tokens'])
+        embedding_helper.get_embeddings(valid_data, hyperparameters['code_max_num_tokens'])
     model.train_log("Begin Training.")
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     return model_path
