@@ -31,10 +31,16 @@ class MaskedSeqEncoder(SeqEncoder):
 
     def init_minibatch(self, batch_data: Dict[str, Any]) -> None:
         super().init_minibatch(batch_data)
-        batch_data['tokens'] = []
+        if self.get_hyper('use_token_embeddings'):
+            batch_data['token_embeddings'] = []
+        else:
+            batch_data['tokens'] = []
         batch_data['tokens_mask'] = []
 
     def minibatch_to_feed_dict(self, batch_data: Dict[str, Any], feed_dict: Dict[tf.Tensor, Any], is_train: bool) -> None:
         super().minibatch_to_feed_dict(batch_data, feed_dict, is_train)
-        write_to_feed_dict(feed_dict, self.placeholders['tokens'], batch_data['tokens'])
+        if self.get_hyper('use_token_embeddings'):
+            write_to_feed_dict(feed_dict, self.placeholders['token_embeddings'], batch_data['token_embeddings'])
+        else:
+            write_to_feed_dict(feed_dict, self.placeholders['tokens'], batch_data['tokens'])
         write_to_feed_dict(feed_dict, self.placeholders['tokens_mask'], batch_data['tokens_mask'])
