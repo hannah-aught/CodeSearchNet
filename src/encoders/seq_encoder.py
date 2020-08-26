@@ -47,10 +47,12 @@ class SeqEncoder(Encoder):
         Creates placeholders "tokens" for sequence encoders.
         """
         super()._make_placeholders()
-        self.placeholders['tokens'] = \
-            tf.placeholder(tf.int32,
-                           shape=[None, self.get_hyper('max_num_tokens')],
-                           name='tokens')
+
+        if not self.get_hyper('use_token_embeddings'):
+            self.placeholders['tokens'] = \
+                tf.placeholder(tf.int32,
+                            shape=[None, self.get_hyper('max_num_tokens')],
+                            name='tokens')
 
     def embedding_layer(self, token_inp: tf.Tensor) -> tf.Tensor:
         """
@@ -161,7 +163,8 @@ class SeqEncoder(Encoder):
                                                    f'{encoder_label}_mark_subtoken_end'])
             tokens, tokens_mask = \
                 convert_and_pad_token_sequence(metadata['token_vocab'], list(data),
-                                               hyperparameters[f'{encoder_label}_max_num_tokens'])
+                                               hyperparameters[f'{encoder_label}_max_num_tokens'],
+                                               use_embeddings=hyperparameters[f'{encoder_label}_use_token_embeddings'])
             # Note that we share the result_holder with different encoders, and so we need to make our identifiers
             # unique-ish
             result_holder[f'{encoder_label}_tokens_{key}'] = tokens
@@ -183,7 +186,10 @@ class SeqEncoder(Encoder):
 
         # Train with some fraction of samples having their query set to the function name instead of the docstring, and
         # their function name replaced with out-of-vocab in the code:
-        current_sample['tokens'] = sample[f'{self.label}_tokens_{query_type}']
+        if self.get_hyper('use_token_embeddings'):
+            current_sample['token_embeddings'] = sample[f'{self.label}_tokens_{query_type}']
+        else:
+            current_sample['tokens'] = sample[f'{self.label}_tokens_{query_type}']
         current_sample['tokens_mask'] = sample[f'{self.label}_tokens_mask_{query_type}']
         current_sample['tokens_lengths'] = sample[f'{self.label}_tokens_length_{query_type}']
 
