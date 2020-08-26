@@ -75,6 +75,13 @@ class Encoder(ABC):
             tf.placeholder(tf.float32,
                            shape=(),
                            name='dropout_keep_rate')
+        if self.get_hyper('use_token_embeddings'):
+            self.__placeholders['token_embeddings'] = \
+                tf.placeholder(tf.float32,
+                               shape=[None,
+                                      self.get_hyper('max_num_tokens'),
+                                      self.get_hyper('token_embedding_size')],
+                                name='token_embeddings')
 
     @abstractmethod
     def make_model(self, is_train: bool=False) -> tf.Tensor:
@@ -141,7 +148,8 @@ class Encoder(ABC):
                               data_to_load: Any,
                               function_name: Optional[str],
                               result_holder: Dict[str, Any],
-                              is_test: bool=True) -> bool:
+                              is_test: bool=True,
+                              load_token_ids: bool=True) -> bool:
         """
         Called to convert a raw sample into the internal format, allowing for preprocessing.
         Result will eventually be fed again into the split_data_into_minibatches pipeline.
