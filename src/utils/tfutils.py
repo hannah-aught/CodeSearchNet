@@ -7,6 +7,7 @@ from tensorflow.python.ops.init_ops import Initializer
 from dpu_utils.mlutils import Vocabulary
 
 from utils.bpevocabulary import BpeVocabulary
+from utils import embedding_helper
 
 BIG_NUMBER = 1e7
 
@@ -15,7 +16,9 @@ def convert_and_pad_token_sequence(token_vocab: Union[Vocabulary, BpeVocabulary]
                                    token_sequence: List[str],
                                    output_tensor_size: int,
                                    pad_from_left: bool = False,
-                                   use_embeddings: bool = True) \
+                                   use_embeddings: bool = True,
+                                   embedding_dim: int = None
+                                   ) \
         -> Tuple[np.ndarray, np.ndarray]:
     """
     Tensorise token sequence with padding; returning a mask for used elements as well.
@@ -59,6 +62,10 @@ def convert_and_pad_token_sequence(token_vocab: Union[Vocabulary, BpeVocabulary]
         else:
             token_ids[i] = token_vocab.get_id_or_unk(token)
         token_mask[i] = True
+
+    if use_embeddings:
+        token_embeddings = embedding_helper.get_embeddings(token_ids, output_tensor_size, embedding_dim=embedding_dim)
+        return token_embeddings, token_mask
 
     return token_ids, token_mask
 
