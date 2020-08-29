@@ -45,9 +45,10 @@ def parse_data_file(hyperparameters: Dict[str, Any],
                     query_encoder_class: Type[Encoder],
                     query_metadata: Dict[str, Any],
                     is_test: bool,
-                    data_file: RichPath) -> Dict[str, List[Tuple[bool, Dict[str, Any]]]]:
+                    file_index: int,
+                    data: list) -> Dict[str, List[Tuple[bool, Dict[str, Any]]]]:
     results: DefaultDict[str, List] = defaultdict(list)
-    for raw_sample in data_file.read_by_file_suffix():
+    for raw_sample in data:
         sample: Dict = {}
         language = raw_sample['language']
         if language.startswith('python'):  # In some datasets, we use 'python-2.7' and 'python-3'
@@ -72,7 +73,7 @@ def parse_data_file(hyperparameters: Dict[str, Any],
                                                                    sample,
                                                                    is_test)
         use_example = use_code_flag and use_query_flag
-        results[language].append((use_example, sample))
+        results[language].append((use_example, sample, file_index))
     return results
 
 
@@ -459,22 +460,54 @@ class Model(ABC):
                                          return_num_original_samples=return_num_original_samples,
                                          parallelize=parallelize)
 
+    def pool_parsed_results(self, results, num_data_files):
+        per_file_results = [defaultdict(lambda:list()) for i in range(num_data_files)]
+        for result in results:
+            for language in result:
+                file_index = result[language][0][-1]
+                for function in result[language]:
+                    per_file_results[file_index][language].append(function[:-1])
+        return per_file_results
+
     def load_data_from_files(self, data_files: Iterable[RichPath], is_test: bool,
                              return_num_original_samples: bool = False, parallelize: bool = True) -> Union[LoadedSamples, Tuple[LoadedSamples, int]]:
-        tasks_as_args = [(self.hyperparameters,
+        '''tasks_as_args = [(self.hyperparameters,
                           self.__code_encoder_type,
                           self.__per_code_language_metadata,
                           self.__query_encoder_type,
                           self.__query_metadata,
                           is_test,
-                          data_file)
-                         for data_file in data_files]
+                          ])
+                         for data_file in data_files]'''
+        tasks_as_args = []
+        chunk_size = 100
+
+        for i, data_file in enumerate(data_files):
+            added = 0
+            chunk = []
+            for data in data_file.read_by_file_suffix():
+                if added == chunk_size:
+                    break
+
+                chunk.append(data)
+                added += 1
+            tasks_as_args.append((self.hyperparameters,
+                                    self.__code_encoder_type,
+                                    self.__per_code_language_metadata,
+                                    self.__query_encoder_type,
+                                    self.__query_metadata,
+                                    is_test,
+                                    i,
+                                    chunk
+                                )
+            )
 
         if parallelize:
             with multiprocessing.Pool() as pool:
-                per_file_results = pool.starmap(parse_data_file, tasks_as_args)
+                results = pool.starmap(parse_data_file, tasks_as_args)
         else:
-            per_file_results = [parse_data_file(*task_args) for task_args in tasks_as_args]
+            results = [parse_data_file(*task_args) for task_args in tasks_as_args]
+        per_file_results = self.pool_parsed_results(results, len(data_files))
         samples: DefaultDict[str, List] = defaultdict(list)
         num_all_samples = 0
         for per_file_result in per_file_results:
@@ -838,9 +871,13 @@ class Model(ABC):
             log_path = os.path.join(self.__log_save_dir,
                                     f'{self.run_name}.train_log')
             wandb.save(log_path)
-            tf.io.write_graph(self.__sess.graph,
+            '''tf.io.write_graph(self.__sess.graph,
                               logdir=wandb.run.dir,
-                              name=f'{self.run_name}-graph.pbtxt')
+                              name=f'{self.run_name}-graph.pbtxt')'''
+            tf.train.write_graph(self.__sess.graph,
+                                 logdir=wandb.run.dir,
+                                 name=f'{self.run_name}-graph.pbtxt'
+            )
 
         self.__summary_writer.close()
         return model_path
