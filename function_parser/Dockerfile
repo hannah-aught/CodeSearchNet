@@ -16,15 +16,15 @@ RUN set -ex && pip3 --no-cache-dir install --upgrade jupyter \
 
 RUN mkdir -p /src/vendor
 RUN mkdir -p /src/build
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-python.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-javascript.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-typescript.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-go.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-ruby.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-java.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-cpp.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-c-sharp.git
-RUN cd /src/vendor && git clone https://github.com/tree-sitter/tree-sitter-php.git
+RUN cd /src/vendor && git clone -b v0.14.0 https://github.com/tree-sitter/tree-sitter-python.git
+RUN cd /src/vendor && git clone -b v0.13.10 https://github.com/tree-sitter/tree-sitter-javascript.git
+RUN cd /src/vendor && git clone -b v0.13.6 https://github.com/tree-sitter/tree-sitter-typescript.git
+RUN cd /src/vendor && git clone -b v0.13.3 https://github.com/tree-sitter/tree-sitter-go.git
+RUN cd /src/vendor && git clone -b v0.13.13 https://github.com/tree-sitter/tree-sitter-ruby.git
+RUN cd /src/vendor && git clone -b v0.13.0 https://github.com/tree-sitter/tree-sitter-java.git
+RUN cd /src/vendor && git clone -b v0.13.14 https://github.com/tree-sitter/tree-sitter-cpp.git
+RUN cd /src/vendor && git clone -b v0.13.0 https://github.com/tree-sitter/tree-sitter-c-sharp.git
+RUN cd /src/vendor && git clone -b v0.13.1 https://github.com/tree-sitter/tree-sitter-php.git
 
 COPY script/setup.py /src/function-parser/script/setup.py
 
