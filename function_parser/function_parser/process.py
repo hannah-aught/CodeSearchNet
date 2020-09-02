@@ -12,7 +12,7 @@ Options:
 import functools
 from multiprocessing import Pool
 import pickle
-from os import PathLike
+from os import PathLike, scandir
 from typing import Optional, Tuple, Type, List, Dict, Any
 
 from docopt import docopt
@@ -32,15 +32,15 @@ class DataProcessor:
         self.language = language
         self.language_parser = language_parser
 
-    def process_dee(self, nwo, ext) -> List[Dict[str, Any]]:
+    def process_dee(self, dir, ext) -> List[Dict[str, Any]]:
         # Process dependees (libraries) to get function implementations
         indexes = []
-        _, nwo = remap_nwo(nwo)
-        if nwo is None:
-            return indexes
+        #_, nwo = remap_nwo(nwo)
+        #if nwo is None:
+            #return indexes
 
-        tmp_dir = download(nwo)
-        files = walk(tmp_dir, ext)
+        #tmp_dir = download(nwo)
+        files = walk(dir, ext)
         # files = glob.iglob(tmp_dir.name + '/**/*.{}'.format(ext), recursive=True)
         sha = None
 
@@ -48,9 +48,10 @@ class DataProcessor:
             definitions = self.get_function_definitions(f)
             if definitions is None:
                 continue
+            '''
             if sha is None:
-                sha = get_sha(tmp_dir, nwo)
-
+                sha = get_sha(dir, nwo)
+            '''
             nwo, path, functions = definitions
             indexes.extend((self.extract_function_data(func, nwo, path, sha) for func in functions if len(func['function_tokens']) > 1))
         return indexes
@@ -154,8 +155,8 @@ class DataProcessor:
             return None
 
     def get_function_definitions(self, filepath: str) -> Optional[Tuple[str, str, List]]:
-        nwo = '/'.join(filepath.split('/')[3:5])
-        path = '/'.join(filepath.split('/')[5:])
+        nwo = '/'.join(filepath.split('/')[5:7])
+        path = '/'.join(filepath.split('/')[7:])
         if any(fp in path.lower() for fp in self.language_parser.FILTER_PATHS):
             return None
         try:
@@ -170,33 +171,39 @@ class DataProcessor:
 if __name__ == '__main__':
     args = docopt(__doc__)
 
-    repository_dependencies = pd.read_csv(args['INPUT_DIR'] + 'repository_dependencies-1.4.0-2018-12-22.csv', index_col=False)
-    projects = pd.read_csv(args['INPUT_DIR'] + 'projects_with_repository_fields-1.4.0-2018-12-22.csv', index_col=False)
+    #repository_dependencies = pd.read_csv(args['INPUT_DIR'] + 'repository_dependencies-1.4.0-2018-12-22.csv', index_col=False)
+    #projects = pd.read_csv(args['INPUT_DIR'] + 'projects_with_repository_fields-1.4.0-2018-12-22.csv', index_col=False)
 
-    repository_dependencies['Manifest Platform'] = repository_dependencies['Manifest Platform'].apply(lambda x: x.lower())
-    id_to_nwo = {project['ID']: project['Repository Name with Owner'] for project in projects[['ID', 'Repository Name with Owner']].dropna().to_dict(orient='records')}
-    nwo_to_name = {project['Repository Name with Owner']: project['Name'] for project in projects[['Repository Name with Owner', 'Name']].dropna().to_dict(orient='records')}
+    #repository_dependencies['Manifest Platform'] = repository_dependencies['Manifest Platform'].apply(lambda x: x.lower())
+    #id_to_nwo = {project['ID']: project['Repository Name with Owner'] for project in projects[['ID', 'Repository Name with Owner']].dropna().to_dict(orient='records')}
+    #nwo_to_name = {project['Repository Name with Owner']: project['Name'] for project in projects[['Repository Name with Owner', 'Name']].dropna().to_dict(orient='records')}
 
-    filtered = repository_dependencies[(repository_dependencies['Host Type'] == 'GitHub') & (repository_dependencies['Manifest Platform'] == LANGUAGE_METADATA[args['--language']]['platform'])][['Repository Name with Owner', 'Dependency Project ID']].dropna().to_dict(orient='records')
+    #filtered = repository_dependencies[(repository_dependencies['Host Type'] == 'GitHub') & (repository_dependencies['Manifest Platform'] == LANGUAGE_METADATA[args['--language']]['platform'])][['Repository Name with Owner', 'Dependency Project ID']].dropna().to_dict(orient='records')
 
-    dependency_pairs = [(rd['Repository Name with Owner'], id_to_nwo[int(rd['Dependency Project ID'])])
-                        for rd in filtered if int(rd['Dependency Project ID']) in id_to_nwo]
+    #dependency_pairs = [(rd['Repository Name with Owner'], id_to_nwo[int(rd['Dependency Project ID'])])
+                        #for rd in filtered if int(rd['Dependency Project ID']) in id_to_nwo]
 
-    dependency_pairs = list(set(dependency_pairs))
+    #dependency_pairs = list(set(dependency_pairs))
 
-    dents, dees = zip(*dependency_pairs)
-    # dents = list(set(dents))
-    dees = list(set(dees))
+    #dents, dees = zip(*dependency_pairs)
+    #dents = list(set(dents))
+    #dees = list(set(dees))
 
+    repos = scandir(args['INPUT_DIR'])
     DataProcessor.PARSER.set_language(Language(args['--tree-sitter-build'], args['--language']))
 
     processor = DataProcessor(language=args['--language'],
                               language_parser=LANGUAGE_METADATA[args['--language']]['language_parser'])
 
+    '''
     with Pool(processes=int(args['--processes'])) as pool:
         output = pool.imap_unordered(functools.partial(processor.process_dee,
                                                        ext=LANGUAGE_METADATA[args['--language']]['ext']),
-                                     dees)
+                                     repos)
+    '''
+    output = []
+    for repo in repos:
+        output.append(processor.process_dee(repo, ext=LANGUAGE_METADATA[args['--language']]['ext']))
 
     definitions = list(flatten(output))
     with open(args['OUTPUT_DIR'] + '{}_definitions.pkl'.format(args['--language']), 'wb') as f:
