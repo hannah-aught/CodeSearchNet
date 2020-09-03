@@ -158,8 +158,8 @@ class DataProcessor:
             return None
 
     def get_function_definitions(self, filepath: str) -> Optional[Tuple[str, str, List]]:
-        nwo = '/'.join(filepath.split('/')[5:7])
-        path = '/'.join(filepath.split('/')[7:])
+        nwo = '/'.join(filepath.split('/')[3:5])
+        path = '/'.join(filepath.split('/')[5:])
         if any(fp in path.lower() for fp in self.language_parser.FILTER_PATHS):
             return None
         try:
