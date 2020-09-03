@@ -12,7 +12,7 @@ Options:
 import functools
 from multiprocessing import Pool
 import pickle
-from os import PathLike, scandir
+import os
 from typing import Optional, Tuple, Type, List, Dict, Any
 
 from docopt import docopt
@@ -32,7 +32,9 @@ class DataProcessor:
         self.language = language
         self.language_parser = language_parser
 
-    def process_dee(self, dir, ext) -> List[Dict[str, Any]]:
+    def process_dee(self, dir_path, ext) -> List[Dict[str, Any]]:
+        print("in process_dee")
+
         # Process dependees (libraries) to get function implementations
         indexes = []
         #_, nwo = remap_nwo(nwo)
@@ -40,7 +42,8 @@ class DataProcessor:
             #return indexes
 
         #tmp_dir = download(nwo)
-        files = walk(dir, ext)
+        files = walk(dir_path, ext)
+        print("got files")
         # files = glob.iglob(tmp_dir.name + '/**/*.{}'.format(ext), recursive=True)
         sha = None
 
@@ -114,7 +117,7 @@ class DataProcessor:
                             edges.append((dent['url'], depended_library_function['url']))
         return dents, edges
 
-    def process_single_file(self, filepath: PathLike) -> List[Dict[str, Any]]:
+    def process_single_file(self, filepath: os.PathLike) -> List[Dict[str, Any]]:
         definitions = self.get_function_definitions(filepath)
         if definitions is None:
             return []
@@ -188,23 +191,25 @@ if __name__ == '__main__':
     #dents, dees = zip(*dependency_pairs)
     #dents = list(set(dents))
     #dees = list(set(dees))
-
-    repos = scandir(args['INPUT_DIR'])
+    repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), repo) for repo in os.listdir(args['INPUT_DIR'])]
     DataProcessor.PARSER.set_language(Language(args['--tree-sitter-build'], args['--language']))
 
     processor = DataProcessor(language=args['--language'],
                               language_parser=LANGUAGE_METADATA[args['--language']]['language_parser'])
 
-    '''
+    
     with Pool(processes=int(args['--processes'])) as pool:
+        print("got pool")
         output = pool.imap_unordered(functools.partial(processor.process_dee,
                                                        ext=LANGUAGE_METADATA[args['--language']]['ext']),
-                                     repos)
+                                      repos)
     '''
+    repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), repo) for repo in repos]
     output = []
     for repo in repos:
         output.append(processor.process_dee(repo, ext=LANGUAGE_METADATA[args['--language']]['ext']))
-
+    '''
+    print("done with pool")
     definitions = list(flatten(output))
     with open(args['OUTPUT_DIR'] + '{}_definitions.pkl'.format(args['--language']), 'wb') as f:
         pickle.dump(definitions, f)
