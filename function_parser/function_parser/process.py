@@ -197,12 +197,15 @@ if __name__ == '__main__':
     processor = DataProcessor(language=args['--language'],
                               language_parser=LANGUAGE_METADATA[args['--language']]['language_parser'])
 
-    
+
     with Pool(processes=int(args['--processes'])) as pool:
         print("got pool")
-        output = pool.imap_unordered(functools.partial(processor.process_dee,
+        definitions = []
+        for output in pool.imap_unordered(functools.partial(processor.process_dee,
                                                        ext=LANGUAGE_METADATA[args['--language']]['ext']),
-                                      repos)
+                                      repos):
+            definitions.append(output)
+
     '''
     repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), repo) for repo in repos]
     output = []
@@ -210,7 +213,7 @@ if __name__ == '__main__':
         output.append(processor.process_dee(repo, ext=LANGUAGE_METADATA[args['--language']]['ext']))
     '''
     print("done with pool")
-    definitions = list(flatten(output))
+    #definitions = list(flatten(output))
     with open(args['OUTPUT_DIR'] + '{}_definitions.pkl'.format(args['--language']), 'wb') as f:
         pickle.dump(definitions, f)
 
