@@ -7,4 +7,5 @@ RUN pip --no-cache-dir install --upgrade \
     scipy==1.3.1
 
 WORKDIR /home/dev/src
-COPY .
+
+CMD bash
