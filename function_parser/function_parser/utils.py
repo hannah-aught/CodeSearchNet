@@ -50,9 +50,9 @@ def download(nwo: str):
     return tmp_dir
 
 
-def walk(dir:os.DirEntry, ext: str):
+def walk(dir_path: str, ext: str):
     results = []
-    for root, _, files in os.walk(dir.path):
+    for root, _, files in os.walk(dir_path):
         for f in files:
             if f.endswith('.' + ext):
                 results.append(os.path.join(root, f))
