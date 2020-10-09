@@ -8,6 +8,7 @@ Options:
     --processes PROCESSES           # of processes to use [default: 16]
     --license-filter FILE           License metadata to filter, every row contains [nwo, license, language, score] (e.g. ['pandas-dev/pandas', 'bsd-3-clause', 'Python', 0.9997])
     --tree-sitter-build FILE        [default: /src/build/py-tree-sitter-languages.so]
+    --repo-file FILE                Path to file with list of repositories to use
 """
 import functools
 from multiprocessing import Pool
@@ -33,8 +34,6 @@ class DataProcessor:
         self.language_parser = language_parser
 
     def process_dee(self, dir_path, ext) -> List[Dict[str, Any]]:
-        print("in process_dee")
-
         # Process dependees (libraries) to get function implementations
         indexes = []
         #_, nwo = remap_nwo(nwo)
@@ -43,7 +42,6 @@ class DataProcessor:
 
         #tmp_dir = download(nwo)
         files = walk(dir_path, ext)
-        print("got files")
         # files = glob.iglob(tmp_dir.name + '/**/*.{}'.format(ext), recursive=True)
         sha = None
 
@@ -167,7 +165,9 @@ class DataProcessor:
                 blob = source_code.read()
             tree = DataProcessor.PARSER.parse(blob.encode())
             return (nwo, path, self.language_parser.get_definition(tree, blob))
-        except (UnicodeDecodeError, FileNotFoundError, IsADirectoryError, ValueError, OSError):
+        except (UnicodeDecodeError, FileNotFoundError, IsADirectoryError, ValueError, OSError, RecursionError) as e:
+            if type(e).__name__ == 'RecursionError':
+                print("Recursion Error on file: %s" % filepath)
             return None
 
 
@@ -191,7 +191,12 @@ if __name__ == '__main__':
     #dents, dees = zip(*dependency_pairs)
     #dents = list(set(dents))
     #dees = list(set(dees))
-    repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), repo) for repo in os.listdir(args['INPUT_DIR'])]
+    if args['--repo-file'] is not None:
+        with open(args['--repo-file']) as f:
+            repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), x.split(',')[1].strip()) for x in f]
+    else:
+        repos = [os.path.join(os.path.abspath(args['INPUT_DIR'], repo)) for repo in os.listdir(args['INPUT_DIR'])]
+
     DataProcessor.PARSER.set_language(Language(args['--tree-sitter-build'], args['--language']))
 
     processor = DataProcessor(language=args['--language'],
@@ -199,23 +204,25 @@ if __name__ == '__main__':
 
 
     with Pool(processes=int(args['--processes'])) as pool:
-        print("got pool")
         definitions = []
-        for output in pool.imap_unordered(functools.partial(processor.process_dee,
+        files_written = 0
+        for i, output in enumerate(pool.imap_unordered(functools.partial(processor.process_dee,
                                                        ext=LANGUAGE_METADATA[args['--language']]['ext']),
-                                      repos):
+                                      repos)):
             definitions.append(output)
+            print("completed repos: %f%% (%d/%d)" % (i/len(repos) * 100, i, len(repos)), end="\r")
+            
+            '''if i/len(repos) >= (files_written - 7) * .33:
+                with open(args['OUTPUT_DIR'] + '{}_definitions_{}.pkl'.format(args['--language'], files_written), 'wb') as f:
+                    pickle.dump(definitions, f)
 
-    '''
-    repos = [os.path.join(os.path.abspath(args['INPUT_DIR']), repo) for repo in repos]
-    output = []
-    for repo in repos:
-        output.append(processor.process_dee(repo, ext=LANGUAGE_METADATA[args['--language']]['ext']))
-    '''
-    print("done with pool")
-    #definitions = list(flatten(output))
-    with open(args['OUTPUT_DIR'] + '{}_definitions.pkl'.format(args['--language']), 'wb') as f:
-        pickle.dump(definitions, f)
+                definitions = []
+                files_written += 1
+                print("wrote batch {} to file: {}".format(files_written, args['OUTPUT_DIR'] + '{}_definitions_{}.pkl'.format(args['--language'], files_written)))
+            '''
+        with open(args['OUTPUT_DIR'] + '{}_definitions_{}.pkl'.format(args['--language'], files_written), 'wb') as f:
+            pickle.dump(definitions, f)
+            print("wrote final batch to file: {}".format(args['OUTPUT_DIR'] + '{}_definitions_{}.pkl'.format(args['--language'], files_written)))
 
     license_filter_file = args.get('--license-filter')
     if license_filter_file is not None:
