@@ -26,6 +26,9 @@ Example:
     azure://semanticcodesearch/pythondata/Processed_Data_v2
 
 """
+import sys
+
+sys.path.insert(1, '../')
 
 from docopt import docopt
 import hashlib
@@ -51,14 +54,14 @@ def jsonl_to_df(input_folder: RichPath) -> pd.DataFrame:
 
 
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
-    "Resolve near duplicates based upon code_tokens field in data."
-    assert 'code_tokens' in df.columns.values, 'Data must contain field code_tokens'
+    "Resolve near duplicates based upon function_tokens field in data."
+    assert 'function_tokens' in df.columns.values, 'Data must contain field function_tokens'
     assert 'language' in df.columns.values, 'Data must contain field language'
     df.reset_index(inplace=True, drop=True)
     df['doc_id'] = df.index.values
     dd = DuplicateDetector(min_num_tokens_per_document=10)
     filter_mask = df.apply(lambda x: dd.add_file(id=x.doc_id,
-                                                 tokens=x.code_tokens,
+                                                 tokens=x.function_tokens,
                                                  language=x.language),
                            axis=1)
     # compute fuzzy duplicates
