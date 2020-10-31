@@ -36,6 +36,7 @@ def get_data_files_from_directory(data_dirs: List[RichPath],
         files += dir_files
 
     np.random.shuffle(files)  # This avoids having large_file_0, large_file_1, ... subsequences
+
     return files
 
 
@@ -109,7 +110,7 @@ class Model(ABC):
                 # Maximal number of tokens considered to compute a representation for code/query:
                 'code_max_num_tokens': 200,
                 'query_max_num_tokens': 30,
-                'code_use_token_embeddings': True,
+                'code_use_token_embeddings': False,
                 'query_use_token_embeddings': False
                }
 
@@ -487,20 +488,20 @@ class Model(ABC):
             chunk = []
             for data in data_file.read_by_file_suffix():
                 if added == chunk_size:
-                    break
+                    tasks_as_args.append((self.hyperparameters,
+                                          self.__code_encoder_type,
+                                          self.__per_code_language_metadata,
+                                          self.__query_encoder_type,
+                                          self.__query_metadata,
+                                          is_test,
+                                          i,
+                                          chunk
+                                       ))
+                    chunk = []
+                    added = 0
 
                 chunk.append(data)
                 added += 1
-            tasks_as_args.append((self.hyperparameters,
-                                    self.__code_encoder_type,
-                                    self.__per_code_language_metadata,
-                                    self.__query_encoder_type,
-                                    self.__query_metadata,
-                                    is_test,
-                                    i,
-                                    chunk
-                                )
-            )
 
         if parallelize:
             with multiprocessing.Pool() as pool:
