@@ -49,19 +49,29 @@ def jsonl_to_df(input_folder: RichPath) -> pd.DataFrame:
     assert files, 'There were no jsonl.gz files in the specified directory.'
     print(f'reading files from {input_folder.path}')
     for f in tqdm(files, total=len(files)):
-        dfs.append(pd.DataFrame(list(f.read_as_jsonl(error_handling=lambda m,e: print(f'Error while loading {m} : {e}')))))
+        lines = list(f.read_as_jsonl(error_handling=lambda m,e: print(f'Error while loading {m} : {e}')))
+        lines_with_docstrings = []
+
+        for line in lines:
+            if len(line['docstring_tokens']) > 0:
+                line['func_name'] = line.pop('identifier')
+                line['code'] = line.pop('function')
+                line['code_tokens'] = line.pop('function_tokens')
+                lines_with_docstrings.append(line)
+        
+        dfs.append(pd.DataFrame(lines_with_docstrings))
     return pd.concat(dfs)
 
 
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
     "Resolve near duplicates based upon function_tokens field in data."
-    assert 'function_tokens' in df.columns.values, 'Data must contain field function_tokens'
+    assert 'code_tokens' in df.columns.values, 'Data must contain field code_tokens'
     assert 'language' in df.columns.values, 'Data must contain field language'
     df.reset_index(inplace=True, drop=True)
     df['doc_id'] = df.index.values
     dd = DuplicateDetector(min_num_tokens_per_document=10)
     filter_mask = df.apply(lambda x: dd.add_file(id=x.doc_id,
-                                                 tokens=x.function_tokens,
+                                                 tokens=x.code_tokens,
                                                  language=x.language),
                            axis=1)
     # compute fuzzy duplicates
@@ -79,7 +89,7 @@ def label_folds(df: pd.DataFrame, train_ratio: float, valid_ratio: float, test_r
     "Adds a partition column to DataFrame with values: {train, valid, test, holdout}."
     assert abs(train_ratio + valid_ratio + test_ratio + holdout_ratio - 1) < 1e-5,  'Ratios must sum up to 1.'
     # code in the same file will always go to the same split
-    df['hash_key'] = df.apply(lambda x: f'{x.repo}:{x.path}', axis=1)
+    df['hash_key'] = df.apply(lambda x: f'{x.nwo}:{x.path}', axis=1)
     df['hash_val'] = df['hash_key'].apply(lambda x: int(hashlib.md5(x.encode()).hexdigest(), 16) % (2**16))
 
     train_bound = int(2**16 * train_ratio)
@@ -99,7 +109,7 @@ def label_folds(df: pd.DataFrame, train_ratio: float, valid_ratio: float, test_r
     # apply partition logic
     df['partition'] = df['hash_val'].apply(lambda x: label_splits(x))
     # display summary statistics
-    counts = df.groupby('partition')['repo'].count().rename('count')
+    counts = df.groupby('partition')['nwo'].count().rename('count')
     summary_df = pd.concat([counts, (counts / counts.sum()).rename('pct')], axis=1)
     print(summary_df)
 
@@ -118,8 +128,8 @@ def run(args):
 
     # get data and process it
     df = jsonl_to_df(input_path)
-    print('Removing fuzzy duplicates ... this may take some time.')
-    df = remove_duplicate_code_df(df)
+    #print('Removing fuzzy duplicates ... this may take some time.')
+    #df = remove_duplicate_code_df(df)
     df = df.sample(frac=1, random_state=20181026)  # shuffle order of files
     df = label_folds(df, train_ratio=train, valid_ratio=valid, test_ratio=test, holdout_ratio=holdout)
     splits = ['train', 'valid', 'test', 'holdout']
