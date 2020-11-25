@@ -32,8 +32,8 @@ Options:
     --evaluate-model PATH            Run evaluation on previously trained model.
     --sequential                     Do not parallelise data-loading. Simplifies debugging. [default: False]
     --debug                          Enable debug routines. [default: False]
-    --random-sample-size             Number of functions to include in the training sample. [default: 0]
-    --num-random-samples             Number of models to train on randomly sampled data. [default: 1]
+    --random-sample-size SIZE        Number of functions to include in the training sample. [default: 0]
+    --num-random-samples INT         Number of models to train on randomly sampled data. [default: 1]
 """
 import json
 import os
