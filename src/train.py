@@ -32,6 +32,8 @@ Options:
     --evaluate-model PATH            Run evaluation on previously trained model.
     --sequential                     Do not parallelise data-loading. Simplifies debugging. [default: False]
     --debug                          Enable debug routines. [default: False]
+    --random-sample-size             Number of functions to include in the training sample. [default: 0]
+    --num-random-samples             Number of models to train on randomly sampled data. [default: 0]
 """
 import json
 import os
@@ -59,7 +61,9 @@ def run_train(model_class: Type[Model],
               run_name: str,
               quiet: bool = False,
               max_files_per_dir: Optional[int] = None,
-              parallelize: bool = True) -> RichPath:
+              parallelize: bool = True,
+              random_samples: int = 0,
+              random_sample_size: int = 0) -> RichPath:
     # creates the session/graph, initializes gpu settings
     model = model_class(hyperparameters, run_name=run_name, model_save_dir=save_folder, log_save_dir=save_folder)
     if os.path.exists(model.model_save_path):
@@ -69,12 +73,14 @@ def run_train(model_class: Type[Model],
                                                                                              str(hyperparameters)))
         resume = True
     else:
-        model.train_log("Tokenizing and building vocabulary for code snippets and queries.  This step may take several hours.")
-        model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, parallelize=parallelize)
-        model.make_model(is_train=True)
-        model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
-                                                                                             model.__class__.__name__,
-                                                                                             str(hyperparameters)))
+        if random_samples > 0:
+            for i in range(random_samples):
+                model.train_log(f"Tokenizing and building vocabulary for code snippets and queries for model {i+1}/{random_samples}.  This step may take several hours.")
+                model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
+                model.make_model(is_train=True)
+                model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
+                                                                                                     model.__class__.__name__,
+                                                                                                     str(hyperparameters)))
         resume = False
 
     philly_job_id = os.environ.get('PHILLY_JOB_ID')
@@ -176,7 +182,9 @@ def run(arguments, tag_in_vcs=False) -> None:
         model_path = run_train(model_class, train_data_dirs, valid_data_dirs, save_folder, hyperparameters,
                                azure_info_path, run_name, arguments['--quiet'],
                                max_files_per_dir=max_files_per_dir,
-                               parallelize=not(arguments['--sequential']))
+                               parallelize=not(arguments['--sequential']),
+                               random_samples = args['--num-random-samples'],
+                               random_sample_size = args['--random-sample-size'])
 
     wandb.config['best_model_path'] = str(model_path)
     wandb.save(str(model_path.to_local_path()))
