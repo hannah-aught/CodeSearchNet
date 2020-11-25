@@ -33,7 +33,7 @@ Options:
     --sequential                     Do not parallelise data-loading. Simplifies debugging. [default: False]
     --debug                          Enable debug routines. [default: False]
     --random-sample-size             Number of functions to include in the training sample. [default: 0]
-    --num-random-samples             Number of models to train on randomly sampled data. [default: 0]
+    --num-random-samples             Number of models to train on randomly sampled data. [default: 1]
 """
 import json
 import os
@@ -73,14 +73,13 @@ def run_train(model_class: Type[Model],
                                                                                              str(hyperparameters)))
         resume = True
     else:
-        if random_samples > 0:
-            for i in range(random_samples):
-                model.train_log(f"Tokenizing and building vocabulary for code snippets and queries for model {i+1}/{random_samples}.  This step may take several hours.")
-                model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
-                model.make_model(is_train=True)
-                model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
-                                                                                                     model.__class__.__name__,
-                                                                                                     str(hyperparameters)))
+        for i in range(random_samples):
+            model.train_log(f"Tokenizing and building vocabulary for code snippets and queries for model {i+1}/{random_samples}.  This step may take several hours.")
+            model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
+            model.make_model(is_train=True)
+            model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
+                                                                                                 model.__class__.__name__,
+                                                                                                 str(hyperparameters)))
         resume = False
 
     philly_job_id = os.environ.get('PHILLY_JOB_ID')
