@@ -62,10 +62,10 @@ def run_train(model_class: Type[Model],
               quiet: bool = False,
               max_files_per_dir: Optional[int] = None,
               parallelize: bool = True,
-              random_samples: int = 0,
               random_sample_size: int = 0) -> RichPath:
     # creates the session/graph, initializes gpu settings
     model = model_class(hyperparameters, run_name=run_name, model_save_dir=save_folder, log_save_dir=save_folder)
+
     if os.path.exists(model.model_save_path):
         model = model_restore_helper.restore(RichPath.create(model.model_save_path), is_train=True)
         model.train_log("Resuming training run %s of model %s with following hypers:\n%s" % (run_name,
@@ -73,13 +73,12 @@ def run_train(model_class: Type[Model],
                                                                                              str(hyperparameters)))
         resume = True
     else:
-        for i in range(random_samples):
-            model.train_log(f"Tokenizing and building vocabulary for code snippets and queries for model {i+1}/{random_samples}.  This step may take several hours.")
-            model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
-            model.make_model(is_train=True)
-            model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
-                                                                                                 model.__class__.__name__,
-                                                                                                 str(hyperparameters)))
+        model.train_log(f"Tokenizing and building vocabulary for code snippets and queries for model {i+1}/{random_samples}.  This step may take several hours.")
+        model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
+        model.make_model(is_train=True)
+        model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
+                                                                                             model.__class__.__name__,
+                                                                                             str(hyperparameters)))
         resume = False
 
     philly_job_id = os.environ.get('PHILLY_JOB_ID')
@@ -94,7 +93,7 @@ def run_train(model_class: Type[Model],
     valid_data = model.load_data_from_dirs(valid_data_dirs, is_test=False, max_files_per_dir=max_files_per_dir, parallelize=parallelize)
     model.train_log("Begin Training.")
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
-    return model_path
+    return model_paths
 
 
 def make_run_id(arguments: Dict[str, Any]) -> str:
@@ -164,35 +163,36 @@ def run(arguments, tag_in_vcs=False) -> None:
         os.environ["WANDB_MODE"] = 'dryrun'
     # save hyperparams to logging
     # must filter out type=set from logging when as that is not json serializable
-    wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
-    wandb.config.update({'model-class': arguments['--model'],
-                         'train_folder': str(train_data_dirs),
-                         'valid_folder': str(valid_data_dirs),
-                         'save_folder': str(save_folder),
-                         'test_folder': str(test_data_dirs),
-                         'CUDA_VISIBLE_DEVICES': os.environ.get("CUDA_VISIBLE_DEVICES", 'Not Set'),
-                         'run-name': arguments.get('--run-name'),
-                         'CLI-command': ' '.join(sys.argv)})
+    for i in range(len(arguments['--num-random-samples'])):
+    
+        wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
+        wandb.config.update({'model-class': arguments['--model'],
+                             'train_folder': str(train_data_dirs),
+                             'valid_folder': str(valid_data_dirs),
+                             'save_folder': str(save_folder),
+                             'test_folder': str(test_data_dirs),
+                             'CUDA_VISIBLE_DEVICES': os.environ.get("CUDA_VISIBLE_DEVICES", 'Not Set'),
+                             'run-name': arguments.get('--run-name'),
+                             'CLI-command': ' '.join(sys.argv)})
 
 
-    if arguments.get('--evaluate-model'):
-        model_path = RichPath.create(arguments['--evaluate-model'])
-    else:
-        model_path = run_train(model_class, train_data_dirs, valid_data_dirs, save_folder, hyperparameters,
-                               azure_info_path, run_name, arguments['--quiet'],
-                               max_files_per_dir=max_files_per_dir,
-                               parallelize=not(arguments['--sequential']),
-                               random_samples = args['--num-random-samples'],
-                               random_sample_size = args['--random-sample-size'])
+        if arguments.get('--evaluate-model'):
+            model_path = RichPath.create(arguments['--evaluate-model'])
+        else:
+            model_path = run_train(model_class, train_data_dirs, valid_data_dirs, save_folder, hyperparameters,
+                                   azure_info_path, run_name, arguments['--quiet'],
+                                   max_files_per_dir=max_files_per_dir,
+                                   parallelize=not(arguments['--sequential']),
+                                   random_sample_size = int(args['--random-sample-size']))
 
-    wandb.config['best_model_path'] = str(model_path)
-    wandb.save(str(model_path.to_local_path()))
+        wandb.config['best_model_path'] = str(model_path)
+        wandb.save(str(model_path.to_local_path()))
 
-    # only limit files in test run if `--testrun` flag is passed by user.
-    if testrun:
-        compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs, max_files_per_dir)
-    else:
-        compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs)
+        # only limit files in test run if `--testrun` flag is passed by user.
+        if testrun:
+            compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs, max_files_per_dir)
+        else:
+            compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs)
 
 
 if __name__ == '__main__':
