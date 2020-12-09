@@ -205,11 +205,8 @@ class Model(ABC):
             for d in data:
                 all_data.append(d)
 
-        try:
+        if not os.path.exists(random_sample_dir):
             os.makedirs(random_sample_dir)
-        except OSError:
-            print(f"error: {random_sample_dir} already exists")
-            return
 
         random_indices = random.sample(range(len(all_data)), random_sample_size)
         random_data = [all_data[x] for x in random_indices]
