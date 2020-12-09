@@ -25,6 +25,27 @@ class RepresentationType(Enum):
     CODE = auto()
     QUERY = auto()
 
+def make_random_sample(train_data_dirs:List[RichPath], random_sample_size:int, random_sample_dir:str):
+    data = load_data_from_dirs(train_data_dirs)
+
+    try:
+        os.makedirs(random_sample_dir)
+    except OSError:
+        print(f"error: {random_sample_dir} already exists")
+        return
+
+    random_indices = random.sample(range(len(data)), random_sample_size)
+    random_data = [data[x] for x in random_indices]
+
+    with gzip.open(random_sample_dir + '/train.jsonl.gz', 'wb') as f:
+        count = 0
+        for line in random_data:
+            f.write(bytes(json.dumps(x),'utf-8'))
+            f.write(b'\n')
+            count += 1
+            print(f'wrote {count}/{random_sample_size} functions to {random_sample_dir + "/train.jsonl.gz"}')
+    
+    return RichPath(random_sample_dir)
 
 def get_data_files_from_directory(data_dirs: List[RichPath],
                                   max_files_per_dir: Optional[int] = None) -> List[RichPath]:
@@ -459,10 +480,12 @@ class Model(ABC):
         self.__per_code_language_metadata = saved_data['per_code_language_metadata']
 
     def load_data_from_dirs(self, data_dirs: List[RichPath], is_test: bool,
+                            random_sample_size: int = 0,
                             max_files_per_dir: Optional[int] = None,
                             return_num_original_samples: bool = False, 
                             parallelize: bool = True) -> Union[LoadedSamples, Tuple[LoadedSamples, int]]:
         return self.load_data_from_files(data_files=list(get_data_files_from_directory(data_dirs, max_files_per_dir)),
+                                         random_sample_size: int = 0,
                                          is_test=is_test,
                                          return_num_original_samples=return_num_original_samples,
                                          parallelize=parallelize)
