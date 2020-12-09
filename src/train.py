@@ -74,8 +74,8 @@ def run_train(model_class: Type[Model],
         resume = True
     elif random_sample_size > 0:
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
-        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/home/dev/resources/data/apache_dd/jsonl/train/random/')
-        model.load_metadata(random_sample_dir, parallelize=parallelize)
+        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/Users/hannahbrown/ucd/decal/CodeSearchNet/resources/data/apache_dd/jsonl/train/random/')
+        model.load_metadata(train_data_dirs, parallelize=parallelize)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
         resume = False
     else:
@@ -101,7 +101,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.removedirs(train_data_dirs)
+        os.removedirs(train_data_dirs[0])
 
     return model_path
 
