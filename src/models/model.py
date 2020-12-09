@@ -194,7 +194,7 @@ class Model(ABC):
         self.__summary_writer.add_summary(summary, step)
         self.__summary_writer.flush()
 
-    def make_random_sample(train_data_dirs:List[RichPath], random_sample_size:int, random_sample_dir:str):
+    def make_random_sample(self, train_data_dirs:List[RichPath], random_sample_size:int, random_sample_dir:str):
         data = load_data_from_dirs(train_data_dirs)
 
         try:
