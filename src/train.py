@@ -52,9 +52,6 @@ from models.model import Model
 import model_test as test
 from utils import embedding_helper
 
-def make_random_sample(train_data_dirs, random_sample_size):
-
-
 def run_train(model_class: Type[Model],
               train_data_dirs: List[RichPath],
               valid_data_dirs: List[RichPath],
@@ -77,13 +74,13 @@ def run_train(model_class: Type[Model],
         resume = True
     elif random_sample_size > 0:
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
-        train_data_dirs = make_random_sample(train_data_dirs, random_sample_size, '/home/dev/resources/data/apache_dd/jsonl/train/random/')
+        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/home/dev/resources/data/apache_dd/jsonl/train/random/')
         model.load_metadata(random_sample_dir, parallelize=parallelize)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
         resume = False
     else:
         model.train_log(f"Tokenizing and building vocabulary for code snippets and queries. This step may take several hours.")            
-        model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, random_sample_size=random_sample_size, parallelize=parallelize)
+        model.load_metadata(train_data_dirs, max_files_per_dir=max_files_per_dir, parallelize=parallelize)
         model.make_model(is_train=True)
         model.train_log("Starting training run %s of model %s with following hypers:\n%s" % (run_name,
                                                                                              model.__class__.__name__,

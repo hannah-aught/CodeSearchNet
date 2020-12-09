@@ -416,7 +416,7 @@ class Model(ABC):
             pruned_clipped_gradients.append((gradient, trainable_var))
         self.ops['train_step'] = optimizer.apply_gradients(pruned_clipped_gradients)
 
-    def load_metadata(self, data_dirs: List[RichPath], max_files_per_dir: Optional[int] = None, random_sample_size: int=0, parallelize: bool = True) -> None:
+    def load_metadata(self, data_dirs: List[RichPath], max_files_per_dir: Optional[int] = None, parallelize: bool = True) -> None:
         raw_query_metadata_list = []
         raw_code_language_metadata_lists: DefaultDict[str, List] = defaultdict(list)
 
@@ -426,7 +426,6 @@ class Model(ABC):
             count = 0
 
             for raw_sample in file_path.read_by_file_suffix():
-                count += 1
                 sample_language = raw_sample['language']
                 self.__code_encoder_type.load_metadata_from_sample(raw_sample['code_tokens'],
                                                                    per_code_language_metadata[sample_language],
@@ -434,9 +433,6 @@ class Model(ABC):
                                                                    self.hyperparameters['code_mark_subtoken_end'])
                 self.__query_encoder_type.load_metadata_from_sample([d.lower() for d in raw_sample['docstring_tokens']],
                                                                     raw_query_metadata)
-
-                if random_sample_size > 0 and count > random_sample_size:
-                    break
 
             yield (raw_query_metadata, per_code_language_metadata)
 
@@ -480,12 +476,10 @@ class Model(ABC):
         self.__per_code_language_metadata = saved_data['per_code_language_metadata']
 
     def load_data_from_dirs(self, data_dirs: List[RichPath], is_test: bool,
-                            random_sample_size: int = 0,
                             max_files_per_dir: Optional[int] = None,
                             return_num_original_samples: bool = False, 
                             parallelize: bool = True) -> Union[LoadedSamples, Tuple[LoadedSamples, int]]:
         return self.load_data_from_files(data_files=list(get_data_files_from_directory(data_dirs, max_files_per_dir)),
-                                         random_sample_size: int = 0,
                                          is_test=is_test,
                                          return_num_original_samples=return_num_original_samples,
                                          parallelize=parallelize)
