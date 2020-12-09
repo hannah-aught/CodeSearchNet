@@ -76,6 +76,7 @@ def run_train(model_class: Type[Model],
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
         train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/Users/hannahbrown/ucd/decal/CodeSearchNet/resources/data/apache_dd/jsonl/train/random/')
         model.load_metadata(train_data_dirs, parallelize=parallelize)
+        model.make_model(is_train=True)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
         resume = False
     else:
