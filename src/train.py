@@ -102,7 +102,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.removedirs(train_data_dirs[0])
+        os.removedirs('/Users/hannahbrown/ucd/decal/CodeSearchNet/')
 
     return model_path
 
@@ -174,7 +174,7 @@ def run(arguments, tag_in_vcs=False) -> None:
         os.environ["WANDB_MODE"] = 'dryrun'
     # save hyperparams to logging
     # must filter out type=set from logging when as that is not json serializable
-    for i in range(len(arguments['--num-random-samples'])):
+    for i in range(int(arguments['--num-random-samples'])):
     
         wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
         wandb.config.update({'model-class': arguments['--model'],
