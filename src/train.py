@@ -66,7 +66,7 @@ def run_train(model_class: Type[Model],
     # creates the session/graph, initializes gpu settings
     model = model_class(hyperparameters, run_name=run_name, model_save_dir=save_folder, log_save_dir=save_folder)
 
-    if os.path.exists(model.model_save_path):
+    if os.path.exists(model.model_save_path) and random_sample_size == 0:
         model = model_restore_helper.restore(RichPath.create(model.model_save_path), is_train=True)
         model.train_log("Resuming training run %s of model %s with following hypers:\n%s" % (run_name,
                                                                                              model.__class__.__name__,
@@ -75,7 +75,8 @@ def run_train(model_class: Type[Model],
     elif random_sample_size > 0:
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
         train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/home/dev/resources/data/apache_dd/jsonl/train/random/')
-        model.load_metadata(random_sample_dir, parallelize=parallelize)
+        model.load_metadata(train_data_dirs, parallelize=parallelize)
+        model.make_model(is_train=True)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
         resume = False
     else:
@@ -101,7 +102,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.removedirs(train_data_dirs)
+        os.remove('/users/hannahbrown/ucd/decal/CodeSearchNet/resources/data/apache_dd/jsonl/train/random/train.jsonl.gz')
 
     return model_path
 
@@ -145,7 +146,6 @@ def run(arguments, tag_in_vcs=False) -> None:
     model_class = model_restore_helper.get_model_class_from_name(arguments['--model'])
 
     hyperparameters = model_class.get_default_hyperparameters()
-    run_name = make_run_id(arguments)
 
     # make name of wandb run = run_id (Doesn't populate yet)
     hyperparameters['max_epochs'] = int(arguments.get('--max-num-epochs'))
@@ -173,8 +173,10 @@ def run(arguments, tag_in_vcs=False) -> None:
         os.environ["WANDB_MODE"] = 'dryrun'
     # save hyperparams to logging
     # must filter out type=set from logging when as that is not json serializable
-    for i in range(len(arguments['--num-random-samples'])):
-    
+    results = []
+
+    for i in range(int(arguments['--num-random-samples'])):
+        run_name = make_run_id(arguments)
         wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
         wandb.config.update({'model-class': arguments['--model'],
                              'train_folder': str(train_data_dirs),

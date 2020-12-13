@@ -3,6 +3,8 @@ import itertools
 import multiprocessing
 import random
 import time
+import gzip
+import json
 from abc import ABC, abstractmethod
 from collections import defaultdict, OrderedDict
 from enum import Enum, auto
@@ -195,26 +197,29 @@ class Model(ABC):
         self.__summary_writer.flush()
 
     def make_random_sample(self, train_data_dirs:List[RichPath], random_sample_size:int, random_sample_dir:str):
-        data = self.load_data_from_dirs(train_data_dirs, False)
+        files = get_data_files_from_directory(train_data_dirs)
+        all_data = []
+        
+        for file in files:
+            data = file.read_by_file_suffix()
+            for d in data:
+                all_data.append(d)
 
-        try:
+        if not os.path.exists(random_sample_dir):
             os.makedirs(random_sample_dir)
-        except OSError:
-            print(f"error: {random_sample_dir} already exists")
-            return
 
-        random_indices = random.sample(range(len(data)), random_sample_size)
-        random_data = [data[x] for x in random_indices]
+        random_indices = random.sample(range(len(all_data)), random_sample_size)
+        random_data = [all_data[x] for x in random_indices]
 
-        with gzip.open(random_sample_dir + '/train.jsonl.gz', 'wb') as f:
+        with gzip.open(random_sample_dir + 'train.jsonl.gz', 'wb') as f:
             count = 0
             for line in random_data:
-                f.write(bytes(json.dumps(x),'utf-8'))
+                f.write(bytes(json.dumps(line),'utf-8'))
                 f.write(b'\n')
                 count += 1
-                print(f'wrote {count}/{random_sample_size} functions to {random_sample_dir + "/train.jsonl.gz"}')
+                print(f'wrote {count}/{random_sample_size} functions to {random_sample_dir + "train.jsonl.gz"}', end='\r')
         
-        return RichPath(random_sample_dir)
+        return [RichPath.create(random_sample_dir)]
 
     def save(self, path: RichPath) -> None:
         variables_to_save = list(set(self.__sess.graph.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)))
@@ -525,7 +530,15 @@ class Model(ABC):
 
                 chunk.append(data)
                 added += 1
-
+            tasks_as_args.append((self.hyperparameters,
+                        self.__code_encoder_type,
+                        self.__per_code_language_metadata,
+                        self.__query_encoder_type,
+                        self.__query_metadata,
+                        is_test,
+                        i,
+                        chunk
+                    ))
         if parallelize:
             with multiprocessing.Pool() as pool:
                 results = pool.starmap(parse_data_file, tasks_as_args)
