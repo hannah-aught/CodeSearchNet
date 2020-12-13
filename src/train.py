@@ -102,7 +102,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.remove('/home/dev/resources/data/apache_dd/jsonl/train/random/train.jsonl.gz')
+        os.remove('/users/hannahbrown/ucd/decal/CodeSearchNet/resources/data/apache_dd/jsonl/train/random/train.jsonl.gz')
 
     return model_path
 
@@ -146,7 +146,6 @@ def run(arguments, tag_in_vcs=False) -> None:
     model_class = model_restore_helper.get_model_class_from_name(arguments['--model'])
 
     hyperparameters = model_class.get_default_hyperparameters()
-    run_name = make_run_id(arguments)
 
     # make name of wandb run = run_id (Doesn't populate yet)
     hyperparameters['max_epochs'] = int(arguments.get('--max-num-epochs'))
@@ -174,8 +173,10 @@ def run(arguments, tag_in_vcs=False) -> None:
         os.environ["WANDB_MODE"] = 'dryrun'
     # save hyperparams to logging
     # must filter out type=set from logging when as that is not json serializable
+    results = []
+
     for i in range(int(arguments['--num-random-samples'])):
-    
+        run_name = make_run_id(arguments)
         wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
         wandb.config.update({'model-class': arguments['--model'],
                              'train_folder': str(train_data_dirs),
