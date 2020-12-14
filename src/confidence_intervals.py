@@ -15,6 +15,7 @@ Options:
     --dryrun                         Do not log run into logging database. [default: False]
     --azure-info PATH                Azure authentication information file (JSON). Used to load data from Azure storage.
     --sequential                     Do not parallelise data-loading. Simplifies debugging. [default: False]
+    --alpha VALUE                    Value to use for confidence level in the confidence interval. [default: 0.95]
     --debug                          Enable debug routines. [default: False]
 """
 
@@ -22,19 +23,36 @@ from pathlib import Path
 from docopt import docopt
 from dpu_utils.utils import run_and_debug, RichPath
 import model_test as test
+import scipy.stats as st
+import numpy as np
+
+def get_confidence_interval(data, alpha):
+    return st.t.interval(alpha=alpha, df=len(data)-1, loc=np.mean(data), scale=st.sem(data))
 
 def run(arguments):
     azure_info_path = arguments.get('--azure-info', None)
     valid_data_dir = test.expand_data_path(arguments['VALID_DATA_PATH'], azure_info_path)
     test_data_dir = test.expand_data_path(arguments['TEST_DATA_PATH'], azure_info_path)
-    model_paths = RichPath.create(arguments['MODEL_PATH'], azure_info_path=azure_info_path=).get_filtered_files_in_dir('*.jsonl.gz')
+    model_paths = RichPath.create(arguments['MODEL_PATH'], azure_info_path=azure_info_path).get_filtered_files_in_dir('*.pkl.gz')
+    alpha = float(args['--alpha'])
     results = []
 
     for path in model_paths:
         results.append(test.compute_evaluation_metrics(path, arguments, azure_info_path, 
-                                                       valid_data_dir, test_data_dir))
+                                                       valid_data_dir, test_data_dir, return_results=True)['All'])
     
-    print(results)
+    mrrs = list(zip(*results))
+    docstring_mrrs = mrrs[0]
+    func_name_mrrs = mrrs[1]
+    validation_mrrs = mrrs[2]
+
+    docstring_confidence = get_confidence_interval(docstring_mrrs, alpha)
+    func_name_confidence = get_confidence_interval(func_name_mrrs, alpha)
+    validation_confidence = get_confidence_interval(validation_mrrs, alpha)
+    
+    print(f'{alpha*100}% confidence interval for mrr using docstring as the query: {docstring_confidence}')
+    print(f'{alpha*100}% confidence interval for mrr using function name as the query: {func_name_confidence}')
+    print(f'{alpha*100}% confidence interval for mrr using docstring as the query on validation data: {validation_confidence}')
 
 if __name__ == '__main__':
     args = docopt(__doc__)
