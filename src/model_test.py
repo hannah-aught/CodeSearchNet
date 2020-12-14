@@ -228,7 +228,8 @@ def compute_evaluation_metrics(model_path: RichPath, arguments,
                                azure_info_path: str,
                                valid_data_dirs: List[RichPath], 
                                test_data_dirs: List[RichPath],
-                               max_files_per_dir: Optional[int] = None):
+                               max_files_per_dir: Optional[int] = None,
+                               return_results: Optional[int] = False):
 
     tester = MrrSearchTester(model_path, test_batch_size=int(arguments['--test-batch-size']),
                                   distance_metric=arguments['--distance-metric'])
@@ -239,22 +240,32 @@ def compute_evaluation_metrics(model_path: RichPath, arguments,
     if set(tester.model.per_code_language_metadata.keys()) == dataset_languages:
         evaluation_sets = [('All', False)] + evaluation_sets
     final_eval = {}  # type: Dict[str, float]
+    results = {}
+
     for language_name, filter_language in evaluation_sets:
         if filter_language and language_name not in tester.model.per_code_language_metadata:
             continue
-        mrr = tester.evaluate(test_data, f'Test-{language_name}', filter_language=language_name if filter_language else None)
+        docstring_mrr = tester.evaluate(test_data, f'Test-{language_name}', filter_language=language_name if filter_language else None)
         if language_name == "All":
-            final_eval['Primary MRR'] = mrr
+            final_eval['Primary MRR'] = docstring_mrr
 
         # run test using the function name as the query
-        mrr = tester.evaluate(get_dataset_from(test_data_dirs, use_func_names=True, max_files_per_dir=max_files_per_dir), f'FuncNameTest-{language_name}',
+        func_name_mrr = tester.evaluate(get_dataset_from(test_data_dirs, use_func_names=True, max_files_per_dir=max_files_per_dir), f'FuncNameTest-{language_name}',
                               filter_language=language_name if filter_language else None)
         if language_name == "All":
-            final_eval['FuncName MRR'] = mrr
+            final_eval['FuncName MRR'] = func_name_mrr
 
         # run the test procedure on the validation set (with same batch size as test, so that MRR is comparable)
-        tester.evaluate(get_dataset_from(valid_data_dirs, max_files_per_dir=max_files_per_dir), f'Validation-{language_name}',
+        valid_mrr = tester.evaluate(get_dataset_from(valid_data_dirs, max_files_per_dir=max_files_per_dir), f'Validation-{language_name}',
                         filter_language=language_name if filter_language else None)
+        
+        if return_results:
+            results[f'{language_name}'] = (docstring_mrr, func_name_mrr, valid_mrr)
+        
+
 
     if wandb.run and final_eval:
         wandb.run.summary['Eval'] = final_eval
+
+    if return_results:
+        return results
