@@ -63,7 +63,8 @@ def run_train(model_class: Type[Model],
               quiet: bool = False,
               max_files_per_dir: Optional[int] = None,
               parallelize: bool = True,
-              random_sample_size: int = 0) -> RichPath:
+              random_sample_size: int = 0,
+              random_data_dir_name: Optional[str] = None) -> RichPath:
     # creates the session/graph, initializes gpu settings
     model = model_class(hyperparameters, run_name=run_name, model_save_dir=save_folder, log_save_dir=save_folder)
 
@@ -75,7 +76,7 @@ def run_train(model_class: Type[Model],
         resume = True
     elif random_sample_size > 0:
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
-        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, f'{train_data_dirs[0]}{run_name}/random/')
+        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, random_data_dir_name + '/random')
         model.load_metadata(train_data_dirs, parallelize=parallelize)
         model.make_model(is_train=True)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
@@ -103,7 +104,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.rmdir(f'{"/".join(train_data_dirs[0].split("/")[:-2])}')
+        os.rmdir(random_data_dir_name)
 
     return model_path
 
@@ -176,8 +177,14 @@ def run(arguments, tag_in_vcs=False) -> None:
     # save hyperparams to logging
     # must filter out type=set from logging when as that is not json serializable
     results = []
+    num_random_samples = int(arguments['--num-random-samples'])
 
-    for i in range(int(arguments['--num-random-samples'])):
+    if num_random_samples > 1:
+        random_data_dir = str(train_data_dirs[0]) + arguments['--run-name']
+    else:
+        random_data_dir = None
+
+    for i in range(num_random_samples):
         run_name = make_run_id(arguments)
         wandb.init(name=run_name, config={k: v for k, v in hyperparameters.items() if not isinstance(v, set)})
         wandb.config.update({'model-class': arguments['--model'],
@@ -197,9 +204,10 @@ def run(arguments, tag_in_vcs=False) -> None:
                                    azure_info_path, run_name, arguments['--quiet'],
                                    max_files_per_dir=max_files_per_dir,
                                    parallelize=not(arguments['--sequential']),
-                                   random_sample_size = int(args['--random-sample-size']))
+                                   random_sample_size = int(args['--random-sample-size']),
+                                   random_data_dir=random_data_dir)
 
-        if int(arguments['--num-random-samples']) == 1:
+        if num_random_samples == 1:
             wandb.config['best_model_path'] = str(model_path)
             wandb.save(str(model_path.to_local_path()))
 
