@@ -32,6 +32,7 @@ Options:
     --evaluate-model PATH            Run evaluation on previously trained model.
     --sequential                     Do not parallelise data-loading. Simplifies debugging. [default: False]
     --debug                          Enable debug routines. [default: False]
+    --no-eval                        Disable evaluation after training. [default: False]
     --random-sample-size SIZE        Number of functions to include in the training sample. [default: 0]
     --num-random-samples INT         Number of models to train on randomly sampled data. [default: 1]
 """
@@ -74,7 +75,7 @@ def run_train(model_class: Type[Model],
         resume = True
     elif random_sample_size > 0:
         model.train_log(f'Tokenizing and building vocabulary for {random_sample_size} random code snippets and queries. This step may take several hours')
-        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, '/home/dev/resources/data/apache_dd/jsonl/train/random/')
+        train_data_dirs = model.make_random_sample(train_data_dirs, random_sample_size, f'{train_data_dirs[0]}{run_name}/random/')
         model.load_metadata(train_data_dirs, parallelize=parallelize)
         model.make_model(is_train=True)
         model.train_log(f"Starting training run {run_name} of model {model.__class__.__name__} with the following hypers:\n{str(hyperparameters)}")
@@ -102,7 +103,7 @@ def run_train(model_class: Type[Model],
     model_path = model.train(train_data, valid_data, azure_info_path, quiet=quiet, resume=resume)
     
     if random_sample_size > 0:
-        os.remove('/users/hannahbrown/ucd/decal/CodeSearchNet/resources/data/apache_dd/jsonl/train/random/train.jsonl.gz')
+        os.rmdir(f'{"/".join(train_data_dirs[0].split("/")[:-2])}')
 
     return model_path
 
@@ -123,8 +124,9 @@ def make_run_id(arguments: Dict[str, Any]) -> str:
 def run(arguments, tag_in_vcs=False) -> None:
     azure_info_path = arguments.get('--azure-info', None)
     testrun = arguments.get('--testrun')
+    no_eval = arguments.get('--no-eval')
     max_files_per_dir=arguments.get('--max-files-per-dir')
-
+    
     dir_path = Path(__file__).parent.absolute()
 
     # if you do not pass arguments for train/valid/test data default to files checked into repo.
@@ -197,11 +199,14 @@ def run(arguments, tag_in_vcs=False) -> None:
                                    parallelize=not(arguments['--sequential']),
                                    random_sample_size = int(args['--random-sample-size']))
 
-        wandb.config['best_model_path'] = str(model_path)
-        wandb.save(str(model_path.to_local_path()))
+        if int(arguments['--num-random-samples']) == 1:
+            wandb.config['best_model_path'] = str(model_path)
+            wandb.save(str(model_path.to_local_path()))
 
+        if no_eval:
+            continue
         # only limit files in test run if `--testrun` flag is passed by user.
-        if testrun:
+        elif testrun:
             compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs, max_files_per_dir)
         else:
             compute_evaluation_metrics(model_path, arguments, azure_info_path, valid_data_dirs, test_data_dirs)
