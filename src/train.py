@@ -205,7 +205,7 @@ def run(arguments, tag_in_vcs=False) -> None:
                                    max_files_per_dir=max_files_per_dir,
                                    parallelize=not(arguments['--sequential']),
                                    random_sample_size = int(args['--random-sample-size']),
-                                   random_data_dir=random_data_dir)
+                                   random_data_dir_name=random_data_dir)
 
         if num_random_samples == 1:
             wandb.config['best_model_path'] = str(model_path)
