@@ -224,20 +224,29 @@ def get_dataset_from(data_dirs: List[RichPath],
     return data
 
 
-def compute_evaluation_metrics(model_path: RichPath, arguments, 
+def compute_evaluation_metrics(model_path: RichPath, 
+                               arguments: List, 
                                azure_info_path: str,
                                valid_data_dirs: List[RichPath], 
                                test_data_dirs: List[RichPath],
                                max_files_per_dir: Optional[int] = None,
-                               return_results: Optional[int] = False):
+                               return_results: Optional[int] = False,
+                               languages: Optional[str] = None,
+                               test_docstring: Optional[bool] = True,
+                               test_func_name: Optional[bool] = True,
+                               test_valid: Optional[bool] = True):
 
     tester = MrrSearchTester(model_path, test_batch_size=int(arguments['--test-batch-size']),
                                   distance_metric=arguments['--distance-metric'])
     test_data = get_dataset_from(test_data_dirs, max_files_per_dir=max_files_per_dir)
     # Get all languages in test_data
-    dataset_languages = set(d['language'] for d in test_data)
+    if languages is not None:
+        dataset_languages = set(languages)
+    else:
+        dataset_languages = set(d['language'] for d in test_data)
+
     evaluation_sets = list((l, True) for l in dataset_languages)  # type: List[Tuple[str, bool]]
-    if set(tester.model.per_code_language_metadata.keys()) == dataset_languages:
+    if set(tester.model.per_code_language_metadata.keys()) == dataset_languages and languages is None:
         evaluation_sets = [('All', False)] + evaluation_sets
     final_eval = {}  # type: Dict[str, float]
     results = {}
@@ -245,19 +254,29 @@ def compute_evaluation_metrics(model_path: RichPath, arguments,
     for language_name, filter_language in evaluation_sets:
         if filter_language and language_name not in tester.model.per_code_language_metadata:
             continue
-        docstring_mrr = tester.evaluate(test_data, f'Test-{language_name}', filter_language=language_name if filter_language else None)
-        if language_name == "All":
-            final_eval['Primary MRR'] = docstring_mrr
+
+        if test_docstring:
+            docstring_mrr = tester.evaluate(test_data, f'Test-{language_name}', filter_language=language_name if filter_language else None)
+            if language_name == "All":
+                final_eval['Primary MRR'] = docstring_mrr
+        else:
+            docstring_mrr = 0
 
         # run test using the function name as the query
-        func_name_mrr = tester.evaluate(get_dataset_from(test_data_dirs, use_func_names=True, max_files_per_dir=max_files_per_dir), f'FuncNameTest-{language_name}',
-                              filter_language=language_name if filter_language else None)
-        if language_name == "All":
-            final_eval['FuncName MRR'] = func_name_mrr
+        if test_func_name:
+            func_name_mrr = tester.evaluate(get_dataset_from(test_data_dirs, use_func_names=True, max_files_per_dir=max_files_per_dir), f'FuncNameTest-{language_name}',
+                                filter_language=language_name if filter_language else None)
+            if language_name == "All":
+                final_eval['FuncName MRR'] = func_name_mrr
+        else:
+            func_name_mrr = 0
 
         # run the test procedure on the validation set (with same batch size as test, so that MRR is comparable)
-        valid_mrr = tester.evaluate(get_dataset_from(valid_data_dirs, max_files_per_dir=max_files_per_dir), f'Validation-{language_name}',
-                        filter_language=language_name if filter_language else None)
+        if test_valid:
+            valid_mrr = tester.evaluate(get_dataset_from(valid_data_dirs, max_files_per_dir=max_files_per_dir), f'Validation-{language_name}',
+                            filter_language=language_name if filter_language else None)
+        else:
+            valid_mrr = 0
         
         if return_results:
             results[f'{language_name}'] = (docstring_mrr, func_name_mrr, valid_mrr)
